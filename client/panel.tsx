@@ -12,6 +12,7 @@ import {
   fmtCostSmall,
   fmtDuration,
   fmtPct,
+  fmtThroughput,
   fmtResidual,
   fmtTime,
   fmtTokens,
@@ -127,6 +128,8 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
   const hasUsage = record.input !== null || record.cached !== null || record.output !== null || record.cacheWrite != null;
   const split = record.costBreakdown;
   const pct = fmtPct(cacheRatio(record.input, record.cached, record.cacheWrite));
+  // Same derivation as the session summary, but over this turn's own wall clock.
+  const rate = fmtThroughput(record.output, record.durationMs, "t/s");
   const cacheCost = split ? fmtCostSmall(split.cacheUsd) : "–";
   const costDetail =
     record.costSource === "override"
@@ -194,9 +197,14 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
                 bottom={split ? fmtCostSmall(split.cacheWriteUsd ?? 0) : '–'} width={cols.cache} theme={theme} />
             ) : null}
           </View>
+          {/* The out-cost line is empty ("–") whenever the model has no known
+              price, which is exactly where this turn's own throughput fits: the
+              narrow panel leaves no room on the duration line (92px column, of
+              which the aligned duration line may use ~53px). Priced turns keep
+              the cost rather than trading a real figure for a derived one. */}
           <TurnCell
             top={fmtTokens(record.output)}
-            bottom={split ? fmtCostSmall(split.outUsd) : "–"}
+            bottom={split ? fmtCostSmall(split.outUsd) : rate ?? "–"}
             width={cols.out}
             theme={theme}
           />

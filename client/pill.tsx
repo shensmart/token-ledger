@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { subscribeAgents } from "../shared/agents.ts";
 import { ledgerEnsure, type SyncResult } from "../shared/ledger.ts";
 import { fmtCost } from "./ui.tsx";
-import { compactTokens, fmtPct, fmtThroughput, fmtTokens } from "../shared/format.ts";
+import { compactTokens, fmtPct, fmtThroughput, fmtTokens, shortTokens } from "../shared/format.ts";
 import { cacheRatio } from "../shared/pricing.ts";
 import { pillLabel as assemblePillLabel } from "../shared/pill-label.ts";
 
@@ -22,14 +22,19 @@ function composePillLabel({ summary, inFlight }: SyncResult): string {
   const total = summary.input + summary.cached + (summary.cacheWrite ?? 0) + summary.output;
 
   // With a known price the pill leads with money; otherwise it leads with the
-  // token count. Either way the hit rate rides in the same segment as the
+  // token count. Either way the hit rate rides in the same parentheses as the
   // number it qualifies, so no extra separator is spent on it.
   const usage = cost
-    ? `${estimated ? "≈" : ""}${cost}${hit ? `·${hit}` : ""}`
-    : hit ? `${compactTokens(total)}·${hit}` : `${fmtTokens(total)} tok`;
+    ? `${estimated ? "≈" : ""}${cost}${hit ? `(${hit})` : ""}`
+    : hit ? `${compactTokens(total)}(${hit})` : `${fmtTokens(total)} tok`;
+  // The pill is capped, so a wide count is re-rendered more coarsely before the
+  // throughput is given up; costs are already short enough not to need it.
+  const compactUsage = cost ? usage
+    : hit ? `${shortTokens(total)}(${hit})` : `${fmtTokens(total)} tok`;
 
   return assemblePillLabel({
     usage,
+    compactUsage,
     throughput: fmtThroughput(summary.output, summary.durationMs, "t/s"),
   });
 }
