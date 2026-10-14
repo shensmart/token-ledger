@@ -101,15 +101,23 @@ function InFlightCard({ inFlight, seq, theme }: { inFlight: InFlight; seq: numbe
   );
 }
 
-/** One cell of the TURNS table: tokens on top, estimated cost below. */
+/**
+ * One cell of the TURNS table. The token count is the top line, the cost (or a
+ * placeholder) the second, and an optional third line carries the derived
+ * figure that describes the first: the hit rate under CACHE, the throughput
+ * under OUT. Costs are kept one line above those so a reported number is never
+ * displaced by a derived one.
+ */
 function TurnCell({
   top,
   bottom,
+  third,
   width,
   theme,
 }: {
   top: string;
   bottom: string;
+  third?: string | null;
   width: { minWidth: number };
   theme: PluginTheme;
 }) {
@@ -119,6 +127,11 @@ function TurnCell({
       <Text style={{ color: theme.colors.foregroundMuted, fontSize: 10, fontVariant: ["tabular-nums"] }}>
         {bottom}
       </Text>
+      {third ? (
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 10, fontVariant: ["tabular-nums"] }}>
+          {third}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -188,7 +201,8 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
           <View style={{ gap: 3 }}>
             <TurnCell
               top={fmtTokens(record.cached)}
-              bottom={split ? (pct ? `${cacheCost} · ${pct}` : cacheCost) : pct ?? "–"}
+              bottom={split ? cacheCost : "–"}
+              third={pct}
               width={cols.cache}
               theme={theme}
             />
@@ -197,14 +211,10 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
                 bottom={split ? fmtCostSmall(split.cacheWriteUsd ?? 0) : '–'} width={cols.cache} theme={theme} />
             ) : null}
           </View>
-          {/* The out-cost line is empty ("–") whenever the model has no known
-              price, which is exactly where this turn's own throughput fits: the
-              narrow panel leaves no room on the duration line (92px column, of
-              which the aligned duration line may use ~53px). Priced turns keep
-              the cost rather than trading a real figure for a derived one. */}
           <TurnCell
             top={fmtTokens(record.output)}
-            bottom={split ? fmtCostSmall(split.outUsd) : rate ?? "–"}
+            bottom={split ? fmtCostSmall(split.outUsd) : "–"}
+            third={rate}
             width={cols.out}
             theme={theme}
           />
