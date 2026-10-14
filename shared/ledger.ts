@@ -90,6 +90,13 @@ export const SummarySchema = z.object({
   cached: z.number(),
   cacheWrite: z.number().optional(),
   output: z.number(),
+  /**
+   * Summed wall-clock duration of the turns behind this summary. Wall clock
+   * includes thinking, tool calls, and waiting, so output/duration is an
+   * average throughput, not the model's token generation rate. Defaults to 0
+   * so a client can read summaries produced before this field existed.
+   */
+  durationMs: z.number().nonnegative().default(0),
   costUsd: z.number().nullable(),
   /** Reported + estimated costs for priced turns. */
   effectiveCostUsd: z.number().nullable(),

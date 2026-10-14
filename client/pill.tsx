@@ -5,23 +5,33 @@ import { useLedger } from "./data.ts";
 import { useEffect } from "react";
 import { subscribeAgents } from "../shared/agents.ts";
 import { ledgerEnsure, type SyncResult } from "../shared/ledger.ts";
-import { fmtCost, fmtTokens } from "./ui.tsx";
+import { fmtCost } from "./ui.tsx";
+import { compactTokens, fmtPct, fmtThroughput, fmtTokens } from "../shared/format.ts";
+import { cacheRatio } from "../shared/pricing.ts";
+import { pillLabel as assemblePillLabel } from "../shared/pill-label.ts";
 
 import type { PanelPlacement } from "./layout.ts";
 
-function pillLabel({ summary, inFlight, ctx }: SyncResult): string {
+function composePillLabel({ summary, inFlight }: SyncResult): string {
   const combinedCost = summary.effectiveCostUsd === null && inFlight?.effectiveCostUsd == null
     ? null
     : (summary.effectiveCostUsd ?? 0) + (inFlight?.effectiveCostUsd ?? 0);
   const cost = fmtCost(combinedCost);
   const estimated = summary.estimatedTurns > 0 || inFlight?.effectiveCostUsd != null;
-  const parts = [cost
-    ? `${estimated ? "≈" : ""}${cost}`
-    : `${fmtTokens(summary.input + summary.cached + (summary.cacheWrite ?? 0) + summary.output)} tok`];
-  const liveCtx = inFlight?.ctxUsed != null && inFlight.ctxMax != null
-    ? { used: inFlight.ctxUsed, max: inFlight.ctxMax } : ctx;
-  if (liveCtx && liveCtx.max > 0) parts.push(`ctx ${Math.round(liveCtx.used / liveCtx.max * 100)}%`);
-  return parts.join(" · ");
+  const hit = fmtPct(cacheRatio(summary.input, summary.cached, summary.cacheWrite));
+  const total = summary.input + summary.cached + (summary.cacheWrite ?? 0) + summary.output;
+
+  // With a known price the pill leads with money; otherwise it leads with the
+  // token count. Either way the hit rate rides in the same segment as the
+  // number it qualifies, so no extra separator is spent on it.
+  const usage = cost
+    ? `${estimated ? "≈" : ""}${cost}${hit ? `·${hit}` : ""}`
+    : hit ? `${compactTokens(total)}·${hit}` : `${fmtTokens(total)} tok`;
+
+  return assemblePillLabel({
+    usage,
+    throughput: fmtThroughput(summary.output, summary.durationMs, "t/s"),
+  });
 }
 
 export function contributePills(client: PluginClientContext, placement: PanelPlacement): () => Promise<void> {
@@ -44,7 +54,7 @@ export function contributePills(client: PluginClientContext, placement: PanelPla
       useEffect(() => placement.observe(agent.id, props.layout.compact), [props.layout.compact]);
       const { data, error } = useLedger(agent.id);
       useEffect(() => {
-        handle.update({ label: error ? "Usage unavailable" : data ? pillLabel(data) : "…" });
+        handle.update({ label: error ? "Usage unavailable" : data ? composePillLabel(data) : "…" });
       }, [data, error]);
       return <Icon name={data?.inFlight ? "Activity" : "Coins"} size={props.size} color={props.color} />;
     }

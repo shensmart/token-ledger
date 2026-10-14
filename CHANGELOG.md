@@ -4,6 +4,8 @@
 
 - Add an overview screenshot (demo data, with the sidebar footer row) to the README and as the first manifest media image.
 - Show the cache hit rate — cache reads over the whole prompt — in the session/overview summary, in each turn's CACHE column, and in the in-progress turn line. The value was already computed by `cacheRatio` but never rendered outside the priced cost cell, so turns without a known price hid it entirely.
+- Show the **average output throughput** (`output ÷` summed turn wall clock) in the session/overview summary, and put it in the composer pill next to the cache hit rate. Paseo reports no per-token timing, so this is a throughput floor that includes thinking and tooling; the label is documented as such.
+- Rework the composer pill label: it now carries tokens with the hit rate (`6.5M·95%`) and the throughput, and no longer repeats the context-window fill that the chat surface already shows. The host caps the pill at 160px, so the label is assembled against a measured advance-width table and drops the throughput (then the hit rate) rather than letting the host clip it.
 
 ## v0.7.0 (2026-10-09) — Paseo 0.11 screens and sidebar
 

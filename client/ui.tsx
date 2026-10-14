@@ -2,13 +2,9 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { Text, View } from "react-native";
 import type { Summary, TurnRecord } from "../shared/ledger.ts";
 import { cacheRatio } from "../shared/pricing.ts";
-
-export function fmtTokens(value: number | null): string {
-  if (value === null) return "–";
-  if (value < 1000) return String(value);
-  if (value < 1_000_000) return `${(value / 1000).toFixed(1)}k`;
-  return `${(value / 1_000_000).toFixed(2)}M`;
-}
+// Formatting lives in shared/ so the pill, panel, and overview render identically.
+import { fmtPct, fmtThroughput, fmtTokens } from "../shared/format.ts";
+export { fmtPct, fmtThroughput, fmtTokens } from "../shared/format.ts";
 
 export function fmtCost(value: number | null): string | null {
   if (value === null) return null;
@@ -39,13 +35,6 @@ export function fmtCostSmall(value: number | null): string {
 export function fmtResidual(value: number | null): string {
   if (value === null || Math.abs(value) < 0.005) return " ";
   return `${value > 0 ? "+" : "−"}${fmtCostSmall(Math.abs(value))}`;
-}
-
-export function fmtPct(ratio: number | null): string | null {
-  if (ratio === null) return null;
-  const pct = ratio * 100;
-  if (pct > 0 && pct < 1) return "<1%";
-  return `${Math.round(pct)}%`;
 }
 
 export function fmtDuration(ms: number | null): string {
@@ -125,6 +114,7 @@ export function SummaryRow({ summary, theme, dense }: { summary: Summary; theme:
   const costValue = cost ? `${summary.estimatedTurns > 0 ? "≈" : ""}${cost}` : null;
   const costLabel = summary.unpricedTurns > 0 ? `cost · ${summary.unpricedTurns} unknown` : summary.estimatedTurns > 0 ? "cost · estimated" : "cost";
   const hit = fmtPct(cacheRatio(summary.input, summary.cached, summary.cacheWrite));
+  const rate = fmtThroughput(summary.output, summary.durationMs);
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: dense ? 10 : 16 }}>
       <Stat label="turns" value={String(summary.turns)} theme={theme} dense={dense} />
@@ -133,6 +123,7 @@ export function SummaryRow({ summary, theme, dense }: { summary: Summary; theme:
       {hit ? <Stat label="cache hit" value={hit} theme={theme} dense={dense} /> : null}
       {summary.cacheWrite != null ? <Stat label="cache write" value={fmtTokens(summary.cacheWrite)} theme={theme} dense={dense} /> : null}
       <Stat label="output" value={fmtTokens(summary.output)} theme={theme} dense={dense} />
+      {rate ? <Stat label="avg out" value={rate} theme={theme} dense={dense} /> : null}
       {costValue ? <Stat label={costLabel} value={costValue} theme={theme} dense={dense} /> : null}
     </View>
   );
