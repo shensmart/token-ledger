@@ -7,6 +7,7 @@ export const EMPTY_SUMMARY: Summary = {
   cached: 0,
   output: 0,
   durationMs: 0,
+  toolMs: 0,
   costUsd: null,
   effectiveCostUsd: null,
   estimatedTurns: 0,
@@ -23,6 +24,7 @@ export function summaryFromRows(rows: readonly TurnRow[]): Summary {
     if (row.cacheWrite != null) summary.cacheWrite = (summary.cacheWrite ?? 0) + row.cacheWrite;
     summary.output += row.output ?? 0;
     summary.durationMs += row.durationMs ?? 0;
+    summary.toolMs += row.toolMs ?? 0;
     if (row.costUsd !== null) summary.costUsd = (summary.costUsd ?? 0) + row.costUsd;
     if (row.effectiveCostUsd !== null) {
       summary.effectiveCostUsd = (summary.effectiveCostUsd ?? 0) + row.effectiveCostUsd;

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import type { Ctx, InFlight, TurnRow } from "../shared/ledger.ts";
 import { cacheRatio } from "../shared/pricing.ts";
+import { generationMs } from "../shared/toolTime.ts";
 import {
   fmtCost,
   fmtCostSmall,
@@ -142,7 +143,7 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
   const split = record.costBreakdown;
   const pct = fmtPct(cacheRatio(record.input, record.cached, record.cacheWrite));
   // Same derivation as the session summary, but over this turn's own wall clock.
-  const rate = fmtThroughput(record.output, record.durationMs, "t/s");
+  const rate = fmtThroughput(record.output, generationMs(record.durationMs, record.toolMs ?? 0), "t/s");
   const cacheCost = split ? fmtCostSmall(split.cacheUsd) : "–";
   const costDetail =
     record.costSource === "override"
@@ -157,7 +158,12 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
     <View
       style={{
         flexDirection: "row",
-        alignItems: "center",
+        // Top-aligned, not centered: CACHE and OUT can carry a third line while
+        // IN and COST stop at two, and centering would sink the shorter columns
+        // by half a line so no two counts shared a baseline. Starting every
+        // column at the same top edge keeps the token counts, the costs, and
+        // the derived figures on three common baselines.
+        alignItems: "flex-start",
         gap: cols.gap,
         paddingVertical: 6,
         borderBottomWidth: 1,

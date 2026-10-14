@@ -13,6 +13,12 @@ export const TurnRecordSchema = z.object({
   startedAt: z.string().nullable(),
   endedAt: z.string(),
   durationMs: z.number().nullable(),
+  /**
+   * Milliseconds of this turn's `durationMs` during which at least one tool
+   * call was in flight, measured from tool_call events. Optional: records
+   * written before this field existed have no tool timeline to derive it from.
+   */
+  toolMs: z.number().nonnegative().optional(),
   status: z.enum(["completed", "failed", "canceled", "unknown"]),
   /** A subscription gap may have hidden requests or the terminal outcome. */
   usageGap: z.boolean().optional(),
@@ -91,12 +97,16 @@ export const SummarySchema = z.object({
   cacheWrite: z.number().optional(),
   output: z.number(),
   /**
-   * Summed wall-clock duration of the turns behind this summary. Wall clock
-   * includes thinking, tool calls, and waiting, so output/duration is an
-   * average throughput, not the model's token generation rate. Defaults to 0
+   * Summed wall-clock duration of the turns behind this summary. Defaults to 0
    * so a client can read summaries produced before this field existed.
    */
   durationMs: z.number().nonnegative().default(0),
+  /**
+   * Summed tool-call wait across those turns, for the turns where it was
+   * measured. `durationMs - toolMs` is the closest available stand-in for
+   * generation time; see `toolMs` on TurnRecord for how it is derived.
+   */
+  toolMs: z.number().nonnegative().default(0),
   costUsd: z.number().nullable(),
   /** Reported + estimated costs for priced turns. */
   effectiveCostUsd: z.number().nullable(),

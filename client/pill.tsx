@@ -8,6 +8,7 @@ import { ledgerEnsure, type SyncResult } from "../shared/ledger.ts";
 import { fmtCost } from "./ui.tsx";
 import { compactTokens, fmtPct, fmtThroughput, fmtTokens, shortTokens } from "../shared/format.ts";
 import { cacheRatio } from "../shared/pricing.ts";
+import { generationMs } from "../shared/toolTime.ts";
 import { pillLabel as assemblePillLabel } from "../shared/pill-label.ts";
 
 import type { PanelPlacement } from "./layout.ts";
@@ -35,7 +36,7 @@ function composePillLabel({ summary, inFlight }: SyncResult): string {
   return assemblePillLabel({
     usage,
     compactUsage,
-    throughput: fmtThroughput(summary.output, summary.durationMs, "t/s"),
+    throughput: fmtThroughput(summary.output, generationMs(summary.durationMs, summary.toolMs), "t/s"),
   });
 }
 

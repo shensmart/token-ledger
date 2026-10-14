@@ -34,17 +34,20 @@ export function fmtPct(ratio: number | null): string | null {
 }
 
 /**
- * Average output throughput: output tokens per second of wall clock.
+ * Average output throughput: output tokens per second of the turn's own span.
  *
- * Paseo exposes no per-token or first-token timing, so this is derived from a
- * turn's `startedAt`/`endedAt` span. That span covers thinking, tool calls, and
- * waiting for the provider, so the value is a floor on generation speed rather
- * than the model's token rate — it should never be presented as the latter.
- * Null without both an output count and a measured duration.
+ * The caller passes generation time, not raw wall clock: tool-call wait is
+ * subtracted first (see shared/toolTime.ts). What remains still includes
+ * thinking, prefill over the prompt, and provider wait, because Paseo exposes
+ * no per-token or first-token timing and does not stream reasoning deltas —
+ * `reasoning` items arrive as one batch at the end of a thought, so their
+ * timestamps mark when thinking finished rather than how long it took. The
+ * value is therefore a floor on generation speed, never the model's token rate.
+ * Null without both an output count and a positive window to divide by.
  */
-export function fmtThroughput(output: number | null, durationMs: number | null, suffix = " tok/s"): string | null {
-  if (output === null || durationMs === null || output <= 0 || durationMs <= 0) return null;
-  const perSecond = output / (durationMs / 1000);
+export function fmtThroughput(output: number | null, generationTimeMs: number | null, suffix = " tok/s"): string | null {
+  if (output === null || generationTimeMs === null || output <= 0 || generationTimeMs <= 0) return null;
+  const perSecond = output / (generationTimeMs / 1000);
   if (!Number.isFinite(perSecond) || perSecond <= 0) return null;
   // Below 10 the integer part is too coarse; above it the decimal is noise.
   // The suffix carries its own separator: the panel writes " tok/s" and the

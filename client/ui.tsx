@@ -4,6 +4,7 @@ import type { Summary, TurnRecord } from "../shared/ledger.ts";
 import { cacheRatio } from "../shared/pricing.ts";
 // Formatting lives in shared/ so the pill, panel, and overview render identically.
 import { fmtPct, fmtThroughput, fmtTokens } from "../shared/format.ts";
+import { generationMs } from "../shared/toolTime.ts";
 export { fmtPct, fmtThroughput, fmtTokens } from "../shared/format.ts";
 
 export function fmtCost(value: number | null): string | null {
@@ -114,7 +115,9 @@ export function SummaryRow({ summary, theme, dense }: { summary: Summary; theme:
   const costValue = cost ? `${summary.estimatedTurns > 0 ? "≈" : ""}${cost}` : null;
   const costLabel = summary.unpricedTurns > 0 ? `cost · ${summary.unpricedTurns} unknown` : summary.estimatedTurns > 0 ? "cost · estimated" : "cost";
   const hit = fmtPct(cacheRatio(summary.input, summary.cached, summary.cacheWrite));
-  const rate = fmtThroughput(summary.output, summary.durationMs);
+  // Tool wait is subtracted so the figure describes generation, not the
+  // wall-clock span that also contains command execution and provider waiting.
+  const rate = fmtThroughput(summary.output, generationMs(summary.durationMs, summary.toolMs));
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: dense ? 10 : 16 }}>
       <Stat label="turns" value={String(summary.turns)} theme={theme} dense={dense} />
