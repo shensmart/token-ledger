@@ -1,6 +1,7 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Text, View } from "react-native";
 import type { Summary, TurnRecord } from "../shared/ledger.ts";
+import { cacheRatio } from "../shared/pricing.ts";
 
 export function fmtTokens(value: number | null): string {
   if (value === null) return "–";
@@ -72,7 +73,8 @@ export function statusColor(status: TurnRecord["status"], theme: PluginTheme): s
 
 export function tokensLine(input: number | null, cached: number | null, output: number | null, cacheWrite?: number | null): string | null {
   if (input === null && cached === null && output === null && cacheWrite == null) return null;
-  return `in ${fmtTokens(input)} · cache ${fmtTokens(cached)}${cacheWrite != null ? ` · write ${fmtTokens(cacheWrite)}` : ''} · out ${fmtTokens(output)}`;
+  const pct = fmtPct(cacheRatio(input, cached, cacheWrite));
+  return `in ${fmtTokens(input)} · cache ${fmtTokens(cached)}${pct ? ` (${pct})` : ''}${cacheWrite != null ? ` · write ${fmtTokens(cacheWrite)}` : ''} · out ${fmtTokens(output)}`;
 }
 
 /** Column widths for the TURNS table; shared by the header and data rows. */
@@ -122,11 +124,13 @@ export function SummaryRow({ summary, theme, dense }: { summary: Summary; theme:
   const cost = fmtCost(summary.effectiveCostUsd);
   const costValue = cost ? `${summary.estimatedTurns > 0 ? "≈" : ""}${cost}` : null;
   const costLabel = summary.unpricedTurns > 0 ? `cost · ${summary.unpricedTurns} unknown` : summary.estimatedTurns > 0 ? "cost · estimated" : "cost";
+  const hit = fmtPct(cacheRatio(summary.input, summary.cached, summary.cacheWrite));
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: dense ? 10 : 16 }}>
       <Stat label="turns" value={String(summary.turns)} theme={theme} dense={dense} />
       <Stat label="input" value={fmtTokens(summary.input)} theme={theme} dense={dense} />
       <Stat label="cache" value={fmtTokens(summary.cached)} theme={theme} dense={dense} />
+      {hit ? <Stat label="cache hit" value={hit} theme={theme} dense={dense} /> : null}
       {summary.cacheWrite != null ? <Stat label="cache write" value={fmtTokens(summary.cacheWrite)} theme={theme} dense={dense} /> : null}
       <Stat label="output" value={fmtTokens(summary.output)} theme={theme} dense={dense} />
       {costValue ? <Stat label={costLabel} value={costValue} theme={theme} dense={dense} /> : null}

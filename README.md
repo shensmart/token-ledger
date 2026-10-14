@@ -20,9 +20,9 @@ Per-turn LLM token usage and cost for [Paseo](https://paseo.sh) agents — an ag
 
 **Per-agent panel** (workspace/explorer, bound to one session — the header names the agent and model it is tracking):
 
-- **Session summary** — total turns, input / cache / output tokens, and reported or estimated cost. Estimated totals use `≈`; missing-price turns are counted explicitly.
-- **Turn in progress** — elapsed time, running token counts and estimated cost when available, and a context-window bar. When idle, the last known context-window usage is still shown.
-- **Turn history** — one row per finished turn: status, time, duration, tokens, cost, and a data-quality mark.
+- **Session summary** — total turns, input / cache / output tokens, cache hit rate, and reported or estimated cost. Estimated totals use `≈`; missing-price turns are counted explicitly. The hit rate is cache reads over the whole prompt (fresh input + reads + known writes; see [how turns are measured](#how-turns-are-measured)); it is blank when the provider reports no cache reads.
+- **Turn in progress** — elapsed time, running token counts (with cache hit rate) and estimated cost when available, and a context-window bar. When idle, the last known context-window usage is still shown.
+- **Turn history** — one row per finished turn: status, time, duration, tokens, cache hit rate, cost, and a data-quality mark.
 
 **Composer pill** — every live agent gets a compact pill next to its composer (`$0.43 · ctx 47%`, with an activity icon while a turn is running). The total includes the current turn's estimated cost when available and uses `≈` whenever estimates contribute. Pressing it opens that agent's panel. With split views, each session carries its own pill, so the session↔usage binding is always visible.
 
@@ -32,7 +32,7 @@ Per-turn LLM token usage and cost for [Paseo](https://paseo.sh) agents — an ag
 
 **Sidebar** — a **TokenLedger** row in the sidebar footer shows today's cost (or tokens when no price is known), with an activity icon while a turn is running. "Today" starts at local midnight on the device that shows it.
 
-**Overview** (sidebar footer → TokenLedger, or the command center) — all sessions in one place: grand totals, then per-agent rows grouped by workspace with live-turn indicator, last activity, cost/tokens, and turn count. Pick **Today**, **Last 7 days**, **Last 30 days**, or **All time**; the range is part of the screen link and its title. A range lists agents with turns that ended in it, plus agents with a turn in flight. Tapping a row jumps to that agent.
+**Overview** (sidebar footer → TokenLedger, or the command center) — all sessions in one place: grand totals (including cache hit rate), then per-agent rows grouped by workspace with live-turn indicator, last activity, cost/tokens, and turn count. Pick **Today**, **Last 7 days**, **Last 30 days**, or **All time**; the range is part of the screen link and its title. A range lists agents with turns that ended in it, plus agents with a turn in flight. Tapping a row jumps to that agent.
 
 <p align="center">
   <img src="images/screenshot-overview.png" alt="TokenLedger overview on Last 7 days with demo data: range buttons, totals for all sessions, and agent rows grouped by workspace; the TokenLedger row in the sidebar footer shows today's cost" width="720">
@@ -114,6 +114,8 @@ Cost uses the first available source: upstream reported cost, local override, Op
 Estimated costs are marked `≈`. OpenRouter prices are references and may differ from the actual route or contract. New Codex records retain observed request counts, so tiered prices are chosen separately for each request. Historical records without request detail use the aggregate prompt as an approximate fallback.
 
 Paseo 0.9.1 still does not expose cache-write token counts through its public usage API. TokenLedger can retain and price them separately when supplied, but the current Claude and Codex adapters omit them. Missing counts stay unknown; historical writes are not inferred. Claude's reported total can include charges absent from the token counts, producing a positive residual under COST. Codex input includes cache reads (and cache writes when supplied); the UI separates known cache counts while the ledger retains raw counts.
+
+The **cache hit rate** is cache reads ÷ the whole prompt (`cached / (input + cached + known writes)`), where `input` is the provider-normalized fresh-token count — for Codex and other OpenAI-style adapters that report inclusive input, the cached portion is subtracted first, so the ratio is comparable across providers. It reflects prompt caching only, not output or cost savings, and it is blank when the provider reports no cache reads. The same figure appears in the session and overview summaries (aggregated over turns) and per turn.
 
 Provider-internal subagents are not ordinary Paseo catalog agents. The public plugin API does not expose their usage; the Codex adapter discards child usage notifications. Session and overview totals therefore **may omit descendant usage**. TokenLedger uses only public Paseo APIs; it does not inspect provider logs or gateway billing endpoints. The [upstream API requirements](docs/paseo-usage-api.md) describe the missing fields, lineage, stable request IDs, and accounting scopes needed to close these gaps without double billing.
 

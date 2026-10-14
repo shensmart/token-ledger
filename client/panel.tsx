@@ -58,7 +58,6 @@ function CtxBar({ ctx, theme }: { ctx: Ctx; theme: PluginTheme }) {
 function InFlightCard({ inFlight, seq, theme }: { inFlight: InFlight; seq: number; theme: PluginTheme }) {
   const elapsed = useElapsed(inFlight.startedAt);
   const tokens = tokensLine(inFlight.input, inFlight.cached, inFlight.output, inFlight.cacheWrite);
-  const pct = fmtPct(cacheRatio(inFlight.input, inFlight.cached, inFlight.cacheWrite));
   const ctx = inFlight.ctxUsed !== null && inFlight.ctxMax !== null ? { used: inFlight.ctxUsed, max: inFlight.ctxMax } : null;
   return (
     <View
@@ -83,7 +82,6 @@ function InFlightCard({ inFlight, seq, theme }: { inFlight: InFlight; seq: numbe
       {tokens ? (
         <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, fontVariant: ["tabular-nums"] }}>
           {tokens}
-          {pct ? ` (${pct} cached)` : ""}
           {inFlight.modelCalls > 0 ? ` · ${inFlight.modelCalls} call${inFlight.modelCalls > 1 ? "s" : ""}` : ""}
         </Text>
       ) : (
@@ -187,7 +185,7 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
           <View style={{ gap: 3 }}>
             <TurnCell
               top={fmtTokens(record.cached)}
-              bottom={pct ? `${cacheCost}·${pct}` : cacheCost}
+              bottom={split ? (pct ? `${cacheCost} · ${pct}` : cacheCost) : pct ?? "–"}
               width={cols.cache}
               theme={theme}
             />
