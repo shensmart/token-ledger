@@ -3,7 +3,6 @@ import { z } from "zod";
 import type { PaseoAgentTimelineEvent } from "./paseo-types.ts";
 import { finalizeTurn, mergeObservation, sameTokens, tokenObservation, type UsageLike } from "../shared/aggregate.ts";
 import type { TurnRecord } from "../shared/ledger.ts";
-import { generationMs, toolWaitMs, isTerminalToolStatus } from "../shared/toolTime.ts";
 
 const nullableCount = z.number().finite().nonnegative().nullable();
 const observationSchema = z.object({ input: nullableCount, cached: nullableCount, cacheWrite: nullableCount.optional(), output: nullableCount, cost: nullableCount });
@@ -14,14 +13,6 @@ export const AgentStateSchema = z.object({
     usageGap: z.boolean().optional(),
     provider: z.string().nullable(), model: z.string().nullable(), sessionId: z.string().nullable(),
     observations: z.array(observationSchema), lastUsage: contextSchema.nullable(),
-    /**
-     * Tool-call time within this turn, kept as epoch-ms intervals so it survives
-     * a plugin reload through the journal. Intervals let us take the union,
-     * which is what tool wait actually is when calls overlap.
-     */
-    toolIntervals: z.array(z.object({ start: z.number(), end: z.number() })).optional(),
-    /** Calls seen running but not yet terminal, keyed by callId. */
-    openTools: z.array(z.object({ callId: z.string(), start: z.number() })).optional(),
   }).nullable(),
   prevSessionCostUsd: nullableCount, lastObservation: observationSchema.nullable(),
   costBaselineUncertain: z.boolean().optional(),
@@ -44,7 +35,6 @@ export function createState(previous: TurnRecord | null = null): AgentState {
 function openTurn(state: AgentState, turnId: string | null, startedAt: string) {
   state.open = { key: randomUUID(), turnId, startedAt, provider: state.provider, model: state.model,
     sessionId: state.sessionId, observations: [], lastUsage: null,
-    toolIntervals: [], openTools: [],
     ...(state.usageGapPending ? { usageGap: true } : {}) };
   state.usageGapPending = false;
   return state.open;
@@ -59,18 +49,9 @@ export function closeTurn(agentId: string, state: AgentState, status: TurnRecord
   const final = tokenObservation(finalUsage);
   if (final) state.lastObservation = state.lastObservation && sameTokens(state.lastObservation, final)
     ? mergeObservation(state.lastObservation, final) : final;
-  // Tool wait is derived from the turn's own timeline before the record is
-  // built, so the speed figure can divide by generation time instead of wall
-  // clock. Omitted entirely when no tool interval was observed, which keeps
-  // "no tools ran" distinguishable from "tool tracking was unavailable".
-  const turnDurationMs = open.startedAt === null ? null : Math.max(0, Date.parse(endedAt) - Date.parse(open.startedAt));
-  const toolMs = open.toolIntervals?.length
-    ? toolWaitMs(open.toolIntervals, Date.parse(open.startedAt), Date.parse(endedAt))
-    : undefined;
   const record = finalizeTurn({ agentId, turnId: open.turnId, provider: open.provider ?? state.provider,
     model: open.model ?? state.model, startedAt: open.startedAt, endedAt, status,
-    observations: open.observations, finalUsage, prevSessionCostUsd: state.prevSessionCostUsd,
-    ...(toolMs !== undefined ? { toolMs } : {}) });
+    observations: open.observations, finalUsage, prevSessionCostUsd: state.prevSessionCostUsd });
   // Stable across replay/reload, even if settlement is retried at another time.
   record.id = open.key;
   record.sessionId = open.sessionId ?? state.sessionId;
@@ -172,33 +153,6 @@ export function reconcileUsage(state: AgentState, snapshot: AgentSnapshotLike): 
   if (interrupted) records.push(interrupted);
   return records;
 }
-/**
- * Records tool-call intervals for the open turn. Only timestamps are stored, so
- * every tool type is covered without depending on per-tool `durationMs` (which
- * real shell calls left null).
- */
-function noteToolCall(state: AgentState, item: unknown, at: string): void {
-  const open = state.open;
-  if (!open || typeof item !== "object" || item === null) return;
-  const candidate = item as { type?: unknown; callId?: unknown; status?: unknown };
-  if (candidate.type !== "tool_call") return;
-  const callId = typeof candidate.callId === "string" ? candidate.callId : null;
-  const status = typeof candidate.status === "string" ? candidate.status : null;
-  const atMs = Date.parse(at);
-  if (!callId || !status || !Number.isFinite(atMs)) return;
-  open.toolIntervals ??= [];
-  open.openTools ??= [];
-  if (status === "running") {
-    if (!open.openTools.some((tool) => tool.callId === callId)) open.openTools.push({ callId, start: atMs });
-    return;
-  }
-  if (!isTerminalToolStatus(status)) return;
-  const index = open.openTools.findIndex((tool) => tool.callId === callId);
-  if (index === -1) return;
-  const [{ start }] = open.openTools.splice(index, 1);
-  if (atMs >= start) open.toolIntervals.push({ start, end: atMs });
-}
-
 export function startLifecycleTurn(agentId: string, state: AgentState, turnId: string | null, at: string): TurnRecord | null {
   // A delayed hook must not resurrect the turn already completed on the stream.
   if (state.open?.turnId === turnId || state.lastClosedTurnId === turnId) return null;
@@ -217,7 +171,6 @@ export function streamTurn(state: AgentState, payload: PaseoAgentTimelineEvent):
   if (event.type === "replacement") return null;
   if ("provider" in event) state.provider ??= event.provider;
   const at = "timestamp" in payload ? payload.timestamp : new Date().toISOString();
-  if (event.type === "timeline") noteToolCall(state, event.item, at);
 
   switch (event.type) {
     case "thread_started": return sessionChanged(payload.agentId, state, event.sessionId);

@@ -7,13 +7,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import type { Ctx, InFlight, TurnRow } from "../shared/ledger.ts";
 import { cacheRatio } from "../shared/pricing.ts";
-import { generationMs } from "../shared/toolTime.ts";
 import {
   fmtCost,
   fmtCostSmall,
   fmtDuration,
   fmtPct,
-  fmtThroughput,
   fmtResidual,
   fmtTime,
   fmtTokens,
@@ -102,24 +100,16 @@ function InFlightCard({ inFlight, seq, theme }: { inFlight: InFlight; seq: numbe
   );
 }
 
-/**
- * One cell of the TURNS table. The token count is the top line, the cost (or a
- * placeholder) the second, and an optional third line carries the derived
- * figure that describes the first: the hit rate under CACHE, the throughput
- * under OUT. Costs are kept one line above those so a reported number is never
- * displaced by a derived one.
- */
+/** One cell of the TURNS table: the token count on top, its cost or detail below. */
 function TurnCell({
   top,
   bottom,
-  third,
   width,
   theme,
 }: {
   top: string;
   bottom: string;
-  third?: string | null;
-  width: { minWidth: number };
+  width: { width: number; flexShrink: number };
   theme: PluginTheme;
 }) {
   return (
@@ -128,11 +118,6 @@ function TurnCell({
       <Text style={{ color: theme.colors.foregroundMuted, fontSize: 10, fontVariant: ["tabular-nums"] }}>
         {bottom}
       </Text>
-      {third ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 10, fontVariant: ["tabular-nums"] }}>
-          {third}
-        </Text>
-      ) : null}
     </View>
   );
 }
@@ -142,8 +127,6 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
   const hasUsage = record.input !== null || record.cached !== null || record.output !== null || record.cacheWrite != null;
   const split = record.costBreakdown;
   const pct = fmtPct(cacheRatio(record.input, record.cached, record.cacheWrite));
-  // Same derivation as the session summary, but over this turn's own wall clock.
-  const rate = fmtThroughput(record.output, generationMs(record.durationMs, record.toolMs ?? 0), "t/s");
   const cacheCost = split ? fmtCostSmall(split.cacheUsd) : "–";
   const costDetail =
     record.costSource === "override"
@@ -158,22 +141,21 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
     <View
       style={{
         flexDirection: "row",
-        // Top-aligned, not centered: CACHE and OUT can carry a third line while
-        // IN and COST stop at two, and centering would sink the shorter columns
-        // by half a line so no two counts shared a baseline. Starting every
-        // column at the same top edge keeps the token counts, the costs, and
-        // the derived figures on three common baselines.
-        alignItems: "flex-start",
+        alignItems: "center",
         gap: cols.gap,
         paddingVertical: 6,
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.border,
       }}
     >
-      <View style={{ flex: 1, minWidth: dense ? 72 : 88 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <View style={cols.turns}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: dense ? 4 : 6 }}>
           <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: statusColor(record.status, theme) }} />
           <Text
+            // numberOfLines keeps the sequence on one line: two-digit turns in
+            // the narrow pane would otherwise wrap "#16" into "#1" and "6",
+            // pushing the row taller and breaking the columns' alignment.
+            numberOfLines={1}
             style={{ color: theme.colors.foregroundMuted, fontSize: 12, fontVariant: ["tabular-nums"], minWidth: seqWidth }}
           >
             #{record.seq}
@@ -188,8 +170,12 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
             color: theme.colors.foregroundMuted,
             fontSize: 10,
             fontVariant: ["tabular-nums"],
-            // Align under the time text: dot(7) + gap(6) + seq col + gap(6).
-            paddingLeft: 19 + seqWidth,
+            // Indented to sit under the time, but only by the dot and its gap.
+            // Aligning under the time exactly would cost the full sequence
+            // column again (19 + seqWidth), which the narrow pane cannot spare:
+            // the duration is the widest left-hand figure and it was the first
+            // thing to clip.
+            paddingLeft: 11,
           }}
         >
           {fmtDuration(record.durationMs)}
@@ -206,9 +192,8 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
           />
           <View style={{ gap: 3 }}>
             <TurnCell
-              top={fmtTokens(record.cached)}
+              top={pct ? `${fmtTokens(record.cached)}(${pct})` : fmtTokens(record.cached)}
               bottom={split ? cacheCost : "–"}
-              third={pct}
               width={cols.cache}
               theme={theme}
             />
@@ -220,7 +205,6 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
           <TurnCell
             top={fmtTokens(record.output)}
             bottom={split ? fmtCostSmall(split.outUsd) : "–"}
-            third={rate}
             width={cols.out}
             theme={theme}
           />
@@ -231,7 +215,7 @@ function RecordRow({ record, theme, dense }: { record: TurnRow; theme: PluginThe
             color: theme.colors.foregroundMuted,
             fontSize: 11,
             fontStyle: "italic",
-            minWidth: cols.in.minWidth + cols.cache.minWidth + cols.out.minWidth + cols.gap * 2,
+            minWidth: cols.in.width + cols.cache.width + cols.out.width + cols.gap * 2,
             textAlign: "right",
           }}
         >

@@ -73,8 +73,6 @@ export type FinalizeInput = {
   finalUsage: UsageLike | null;
   /** Raw sessionCostUsd of the previous finalized turn for this agent, if any. */
   prevSessionCostUsd: number | null;
-  /** Tool-call wait measured from timeline events; omitted when not observed. */
-  toolMs?: number;
 };
 
 /** Finalize only according to verified harness semantics; preserve raw facts. */
@@ -136,7 +134,6 @@ export function finalizeTurn(args: FinalizeInput): TurnRecord {
     startedAt: args.startedAt,
     endedAt: args.endedAt,
     durationMs,
-    ...(args.toolMs !== undefined ? { toolMs: Math.min(Math.max(args.toolMs, 0), durationMs ?? args.toolMs) } : {}),
     status: args.status,
     input: tokens.input,
     cached: tokens.cached,

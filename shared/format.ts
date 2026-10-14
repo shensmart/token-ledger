@@ -32,25 +32,3 @@ export function fmtPct(ratio: number | null): string | null {
   if (pct > 0 && pct < 1) return "<1%";
   return `${Math.round(pct)}%`;
 }
-
-/**
- * Average output throughput: output tokens per second of the turn's own span.
- *
- * The caller passes generation time, not raw wall clock: tool-call wait is
- * subtracted first (see shared/toolTime.ts). What remains still includes
- * thinking, prefill over the prompt, and provider wait, because Paseo exposes
- * no per-token or first-token timing and does not stream reasoning deltas —
- * `reasoning` items arrive as one batch at the end of a thought, so their
- * timestamps mark when thinking finished rather than how long it took. The
- * value is therefore a floor on generation speed, never the model's token rate.
- * Null without both an output count and a positive window to divide by.
- */
-export function fmtThroughput(output: number | null, generationTimeMs: number | null, suffix = " tok/s"): string | null {
-  if (output === null || generationTimeMs === null || output <= 0 || generationTimeMs <= 0) return null;
-  const perSecond = output / (generationTimeMs / 1000);
-  if (!Number.isFinite(perSecond) || perSecond <= 0) return null;
-  // Below 10 the integer part is too coarse; above it the decimal is noise.
-  // The suffix carries its own separator: the panel writes " tok/s" and the
-  // width-capped composer pill passes "t/s" without the space.
-  return `${perSecond < 10 ? perSecond.toFixed(1) : Math.round(perSecond)}${suffix}`;
-}

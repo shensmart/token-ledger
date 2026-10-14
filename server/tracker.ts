@@ -345,7 +345,6 @@ export async function handleOverview(input: { since?: string }, context: { paseo
     if (summary.cacheWrite != null) totals.cacheWrite = (totals.cacheWrite ?? 0) + summary.cacheWrite;
     totals.output += summary.output;
     totals.durationMs += summary.durationMs;
-    totals.toolMs += summary.toolMs;
     if (summary.costUsd !== null) totals.costUsd = (totals.costUsd ?? 0) + summary.costUsd;
     if (summary.effectiveCostUsd !== null) totals.effectiveCostUsd = (totals.effectiveCostUsd ?? 0) + summary.effectiveCostUsd;
     totals.estimatedTurns += summary.estimatedTurns;

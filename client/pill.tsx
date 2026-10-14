@@ -6,9 +6,8 @@ import { useEffect } from "react";
 import { subscribeAgents } from "../shared/agents.ts";
 import { ledgerEnsure, type SyncResult } from "../shared/ledger.ts";
 import { fmtCost } from "./ui.tsx";
-import { compactTokens, fmtPct, fmtThroughput, fmtTokens, shortTokens } from "../shared/format.ts";
+import { compactTokens, fmtPct, fmtTokens, shortTokens } from "../shared/format.ts";
 import { cacheRatio } from "../shared/pricing.ts";
-import { generationMs } from "../shared/toolTime.ts";
 import { pillLabel as assemblePillLabel } from "../shared/pill-label.ts";
 
 import type { PanelPlacement } from "./layout.ts";
@@ -28,16 +27,12 @@ function composePillLabel({ summary, inFlight }: SyncResult): string {
   const usage = cost
     ? `${estimated ? "≈" : ""}${cost}${hit ? `(${hit})` : ""}`
     : hit ? `${compactTokens(total)}(${hit})` : `${fmtTokens(total)} tok`;
-  // The pill is capped, so a wide count is re-rendered more coarsely before the
-  // throughput is given up; costs are already short enough not to need it.
+  // The pill is capped, so a wide count is re-rendered more coarsely; costs are
+  // already short enough not to need it.
   const compactUsage = cost ? usage
     : hit ? `${shortTokens(total)}(${hit})` : `${fmtTokens(total)} tok`;
 
-  return assemblePillLabel({
-    usage,
-    compactUsage,
-    throughput: fmtThroughput(summary.output, generationMs(summary.durationMs, summary.toolMs), "t/s"),
-  });
+  return assemblePillLabel({ usage, compactUsage });
 }
 
 export function contributePills(client: PluginClientContext, placement: PanelPlacement): () => Promise<void> {

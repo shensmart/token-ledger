@@ -13,21 +13,21 @@ Per-turn LLM token usage and cost for [Paseo](https://paseo.sh) agents — an ag
 </p>
 
 <p align="center">
-  <img src="images/screenshot-panel.png" alt="TokenLedger per-agent panel: session summary (turns, input/cache/output tokens, cache hit rate, average output throughput, cost), context-window bar, and a per-turn history table" width="560">
+  <img src="images/screenshot-panel.png" alt="TokenLedger per-agent panel: session summary (turns, input/cache/output tokens, cache hit rate, cost), context-window bar, and a per-turn history table" width="560">
 </p>
 
 ## What it shows
 
 **Per-agent panel** (workspace/explorer, bound to one session — the header names the agent and model it is tracking):
 
-- **Session summary** — total turns, input / cache / output tokens, cache hit rate, average output throughput, and reported or estimated cost. Estimated totals use `≈`; missing-price turns are counted explicitly. The hit rate is cache reads over the whole prompt (fresh input + reads + known writes; see [how turns are measured](#how-turns-are-measured)) and is blank when the provider reports no cache reads.
+- **Session summary** — total turns, input / cache / output tokens, cache hit rate, and reported or estimated cost. Estimated totals use `≈`; missing-price turns are counted explicitly. The hit rate is cache reads over the whole prompt (fresh input + reads + known writes; see [how turns are measured](#how-turns-are-measured)) and is blank when the provider reports no cache reads.
 - **Turn in progress** — elapsed time, running token counts (with cache hit rate) and estimated cost when available, and a context-window bar. When idle, the last known context-window usage is still shown.
-- **Turn history** — one row per finished turn: status, time, duration, tokens, cache hit rate, average throughput, cost, and a data-quality mark. CACHE and OUT each use a third line for the derived figure that describes their count — the hit rate under CACHE, the throughput under OUT — so a reported cost is never displaced by a derived number. The throughput shown per turn is the turn's own (tool wait removed), while the summary's `avg out` aggregates output and generation time across turns.
+- **Turn history** — one row per finished turn: status, time, duration, tokens, cache hit rate, cost, and a data-quality mark. The hit rate shares the CACHE cell's second line with the cache cost (`$0.01 · 98%`), or stands alone when the model has no known price.
 
-**Composer pill** — every live agent gets a compact pill next to its composer, e.g. `33.99M(96%) 70t/s`, or `$0.43(90%) 70t/s` when the model has a price; an activity icon shows while a turn is running. The token count carries the session's cache hit rate in parentheses, followed by the average output throughput. The pill is capped by the host (160px, ~110px of label), so it holds only what fits and never lets the host clip it: if the exact count is too wide it is re-rendered more coarsely (`33.99M` → `34M`), then the throughput is dropped, and last of all the hit rate. Context-window fill is deliberately not repeated here — the chat surface already shows it beside the pill. The cost total includes the current turn's estimate when available and uses `≈` whenever estimates contribute. Pressing it opens that agent's panel. With split views, each session carries its own pill, so the session↔usage binding is always visible.
+**Composer pill** — every live agent gets a compact pill next to its composer, e.g. `33.99M(96%)`, or `$0.43(90%)` when the model has a price; an activity icon shows while a turn is running. The token count carries the session's cache hit rate in parentheses. The pill is capped by the host (160px, ~110px of label), so if the exact figure would be clipped it is re-rendered more coarsely (`33.99M` → `34M`). Context-window fill is deliberately not repeated here — the chat surface already shows it beside the pill. The cost total includes the current turn's estimate when available and uses `≈` whenever estimates contribute. Pressing it opens that agent's panel. With split views, each session carries its own pill, so the session↔usage binding is always visible.
 
 <p align="center">
-  <img src="images/screenshot-pill.jpg" alt="TokenLedger composer pill showing the session token count with its cache hit rate and average output throughput next to the composer; pressing it opens the panel" width="560">
+  <img src="images/screenshot-pill.jpg" alt="TokenLedger composer pill showing the session token count with its cache hit rate next to the composer; pressing it opens the panel" width="560">
 </p>
 
 **Sidebar** — a **TokenLedger** row in the sidebar footer shows today's cost (or tokens when no price is known), with an activity icon while a turn is running. "Today" starts at local midnight on the device that shows it.
@@ -114,12 +114,6 @@ Cost uses the first available source: upstream reported cost, local override, Op
 Estimated costs are marked `≈`. OpenRouter prices are references and may differ from the actual route or contract. New Codex records retain observed request counts, so tiered prices are chosen separately for each request. Historical records without request detail use the aggregate prompt as an approximate fallback.
 
 Paseo 0.9.1 still does not expose cache-write token counts through its public usage API. TokenLedger can retain and price them separately when supplied, but the current Claude and Codex adapters omit them. Missing counts stay unknown; historical writes are not inferred. Claude's reported total can include charges absent from the token counts, producing a positive residual under COST. Codex input includes cache reads (and cache writes when supplied); the UI separates known cache counts while the ledger retains raw counts.
-
-The **average output throughput** (`avg out` in the panel, `70t/s` in the pill) is output tokens ÷ the turns' own elapsed time, **with tool-call wait subtracted**. Paseo emits each tool call as a `running` event and a terminal one, both timestamped; pairing them by call id gives the intervals a tool held the turn, and the union of those intervals — not the sum, since a long call can span short ones — is removed from the denominator. Records written before this was measured have no tool timeline and fall back to plain wall clock.
-
-What remains is still a **floor on generation speed, not the model's token rate**. The span left over includes thinking, prefill over the prompt, and waiting on the provider, and the event stream cannot separate them: Paseo's usage API carries no per-token or first-token timing, and `reasoning` items arrive as a burst at the end of a thought (observed item gaps of ~60–70 ms after many seconds of silence), so their timestamps mark when thinking stopped rather than how long it ran. On tool-heavy turns the correction is material; on turns that never call a tool it changes nothing. Use it to compare sessions and models, not as a benchmark.
-
-Records gain an optional `toolMs` field for the subtracted span. It is omitted when no tool interval was observed, which keeps "no tools ran" distinguishable from "tool tracking was unavailable".
 
 The **cache hit rate** is cache reads ÷ the whole prompt (`cached / (input + cached + known writes)`), where `input` is the provider-normalized fresh-token count — for Codex and other OpenAI-style adapters that report inclusive input, the cached portion is subtracted first, so the ratio is comparable across providers. It reflects prompt caching only, not output or cost savings, and it is blank when the provider reports no cache reads. The same figure appears in the session and overview summaries (aggregated over turns) and per turn.
 
